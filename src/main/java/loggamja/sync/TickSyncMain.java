@@ -25,11 +25,16 @@ public class TickSyncMain implements ModInitializer {
 	boolean isTickRateChangedLastTick;
 	boolean isPacketReceivedThisTick;
 	boolean isPacketRangeUpdatedThisTick;
+	boolean packetThreadObserved;
+	boolean hasReceivedEntityPacket;
 
 	int afterLazyPacketCooldown;
+	int pendingTickShift;
+	int entityPacketCallbacksThisTick;
 	public int packetRange;
 	public int instantPacketRange;
 	public int avgPacketDelay;
+	Thread clientThread;
 
 	long lastSyncTime = System.currentTimeMillis();
 	long lastServerPacketTime = System.currentTimeMillis();
@@ -44,8 +49,9 @@ public class TickSyncMain implements ModInitializer {
 	final int fastRangeBufferSize = 10;
 
 	final int outlierLimit = 8;
-	final int syncThresholdOffset = 4;
+	final int syncThresholdOffset = 2;
 	final int clampTolerance = 5;
+	static final int packetActiveTimeout = 250;
 
 	public final int samplingRange = 55;
 
@@ -65,17 +71,25 @@ public class TickSyncMain implements ModInitializer {
 		cfg = TickSyncConfig.INSTANCE;
 	}
 
-	public void onEntityPacket() {
+	public synchronized void onEntityPacket() {
+		if (clientThread != null && Thread.currentThread() != clientThread) {
+			packetThreadObserved = true;
+		} else if (packetThreadObserved && Thread.currentThread() == clientThread) {
+			return;
+		}
+
 		final long now = System.currentTimeMillis();
 
 		lastServerPacketTime = now;
+		hasReceivedEntityPacket = true;
 		isPacketReceivedThisTick = true;
+		entityPacketCallbacksThisTick++;
 
 		// Range 버퍼 업데이트
 		if (!isPacketRangeUpdatedThisTick) {
 			final int delta = (int) (now - lastPacketRangeUpdatedTime);
 
-			if (0 < delta) {
+			if (0 < delta && delta < (int) applyRatio(75.0f)) {
 				final int halfDuration = (int) applyRatio(25);
 				final int normalDeviation = (delta % getTickDuration() + halfDuration) % getTickDuration() - halfDuration;
 				addToPacketRangeBuffer(normalDeviation);
@@ -111,11 +125,14 @@ public class TickSyncMain implements ModInitializer {
 		return MinecraftClient.getInstance().getCurrentFps();
 	}
 
-	public void onClientTickStart() {
-		if (isPlayingInGame()) {
-			final long now = System.currentTimeMillis();
-			final int packetDelay = (int) (now - lastServerPacketTime);
+	public synchronized void onClientTickStart() {
+		clientThread = Thread.currentThread();
+		final long now = System.currentTimeMillis();
+		final int packetDelay = (int) (now - lastServerPacketTime);
+		TickSyncHUDManager.INSTANCE.recordClientTick(entityPacketCallbacksThisTick, packetDelay, hasReceivedEntityPacket);
+		entityPacketCallbacksThisTick = 0;
 
+		if (isPlayingInGame()) {
 			if (0 < packetDelay && packetDelay < applyRatio(samplingRange)) {
 				addToTickDeltaBuffer(packetDelay);
 			} else {
@@ -124,12 +141,12 @@ public class TickSyncMain implements ModInitializer {
 
 			if (afterLazyPacketCooldown > 0) afterLazyPacketCooldown--;
 			TickSyncHUDManager.INSTANCE.addToDebugHistogram(packetDelay);
-			TickSyncHUDManager.INSTANCE.updateHUD();
 
 			avgPacketDelay = calculateMean(packetDelayBuffer);
 			packetRange = calculateRange(packetRangeBuffer, rangeBufferSize);
 			instantPacketRange = calculateRange(fastPacketRangeBuffer, fastRangeBufferSize);
 		}
+		TickSyncHUDManager.INSTANCE.updateHUD();
 		isPacketRangeUpdatedThisTick = false;
 		isPacketReceivedThisTick = false;
 	}
@@ -159,9 +176,14 @@ public class TickSyncMain implements ModInitializer {
 		if (size == 0) return 10;
 
 		int sum = 0;
+		int min = Integer.MAX_VALUE;
+		int max = Integer.MIN_VALUE;
 		for (int v : list) {
 			sum += v;
+			if (v < min) min = v;
+			if (v > max) max = v;
 		}
+		if (size >= 5) return (sum - min - max) / (size - 2);
 		return sum / size;
 	}
 
@@ -185,21 +207,21 @@ public class TickSyncMain implements ModInitializer {
 		}
 	}
 
-	void onClientTickEnd() {
+	synchronized void onClientTickEnd() {
 		if (isTickRateChangedLastTick) {
 			isTickRateChangedLastTick = false;
 			setTickRate(Math.min(20, serverTPS));
 		}
 		final long now = System.currentTimeMillis();
 
-		if (cfg.isTickSyncOn && isPlayingInGame() && canSync() && (now - lastSyncTime) > 1000) {
+		if (pendingTickShift == 0 && cfg.isTickSyncOn && isPlayingInGame() && canSync() && (now - lastSyncTime) > 1000) {
 			if (cfg.margin == 0 && isWeirdSyncOccurred()) {
 				fixWeirdSync();
-			}
-			if (isTickSyncRequired()) {
+			} else if (isTickSyncRequired()) {
 				matchTickSync();
 			}
 		}
+		if (pendingTickShift != 0) applyPendingTickShift();
 	}
 
 	boolean isWeirdSyncOccurred() {
@@ -210,21 +232,18 @@ public class TickSyncMain implements ModInitializer {
 	}
 
 	void fixWeirdSync() {
-		if (packetDelayBuffer.isEmpty()) return;
-
-		lastSyncTime = System.currentTimeMillis();
+		if (packetDelayBuffer.isEmpty() || pendingTickShift != 0) return;
 
 		final float min = Math.min(getPacketMargin() / 2, Collections.min(packetDelayBuffer));
-		final int tickToPush = quantizeToFrame(applyRatio((getPacketMargin() - min)));
-		shiftNextTickDuration(tickToPush);
+		final int tickToPush = Math.max(2, quantizeToFrame(applyRatio((getPacketMargin() - min))));
+		pendingTickShift = tickToPush;
 
 		TickSyncHUDManager.INSTANCE.syncTextAlpha = 10;
 	}
 
 	int getPacketMargin() {
-		final int max = outlierLimit * 2;
-		final int min = afterLazyPacketCooldown > 0 ? 8 : 6;
-		return cfg.margin == 0 ? MathHelper.clamp(packetRange, min, max) : cfg.margin;
+		final int min = afterLazyPacketCooldown > 0 ? 7 : 6;
+		return cfg.margin == 0 ? MathHelper.clamp(packetRange + 3, min, 16) : cfg.margin;
 	}
 
 	boolean isTickSyncRequired() {
@@ -248,7 +267,7 @@ public class TickSyncMain implements ModInitializer {
 	}
 
 	void matchTickSync() {
-		lastSyncTime = System.currentTimeMillis();
+		if (pendingTickShift != 0) return;
 		final int tickToPush;
 
 		if (cfg.margin == 0) {
@@ -266,14 +285,14 @@ public class TickSyncMain implements ModInitializer {
 			tickToPush = clampCorrection;
 		}
 
-		shiftNextTickDuration(tickToPush);
+		pendingTickShift = tickToPush;
 		TickSyncHUDManager.INSTANCE.syncTextAlpha = 20;
 	}
 
 	int quantizeToFrame(float margin) {
+		if (cfg.margin == 0) return Math.max((int) Math.ceil(getFrameDuration()) + 1, Math.round(margin));
 		if (margin < getFrameDuration()) return (int) getFrameDuration();
-		if (cfg.margin == 0) return (int) (Math.floor(margin / getFrameDuration()) * getFrameDuration());
-		else return (int) (Math.round(margin / getFrameDuration()) * getFrameDuration());
+		return (int) (Math.round(margin / getFrameDuration()) * getFrameDuration());
 	}
 
 	int getMatchSyncOffset() {
@@ -284,15 +303,22 @@ public class TickSyncMain implements ModInitializer {
 		return 2;
 	}
 
+	void applyPendingTickShift() {
+		final int shift = Integer.signum(pendingTickShift) * Math.min(4, Math.abs(pendingTickShift));
+		pendingTickShift -= shift;
+		shiftNextTickDuration(shift);
+		if (pendingTickShift == 0) {
+			packetDelayBuffer.clear();
+			addToTickDeltaBuffer(getPacketMargin());
+			avgPacketDelay = getPacketMargin();
+			lastSyncTime = System.currentTimeMillis();
+		}
+	}
+
 	void shiftNextTickDuration(int term) {
 		final float tickRate = 1000f / (term + getTickDuration());
 
 		setTickRate(tickRate);
-		if (cfg.margin == 0) {
-			packetDelayBuffer.clear();
-			addToTickDeltaBuffer(getPacketMargin());
-			avgPacketDelay = getPacketMargin();
-		}
 		isTickRateChangedLastTick = true;
 	}
 

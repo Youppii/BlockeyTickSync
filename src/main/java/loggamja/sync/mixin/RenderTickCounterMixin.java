@@ -1,7 +1,6 @@
 package loggamja.sync.mixin;
 
 import it.unimi.dsi.fastutil.floats.FloatUnaryOperator;
-import loggamja.sync.TickSyncConfig;
 import loggamja.sync.TickSyncMain;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.render.RenderTickCounter;
@@ -27,13 +26,9 @@ public class RenderTickCounterMixin {
     @Unique
     private final FloatUnaryOperator targetMillisPerTick = millis -> {
         if (MinecraftClient.getInstance().world != null) {
-            if (TickSyncMain.INSTANCE.clientTPS > 20
-                    || (TickSyncConfig.INSTANCE.margin > 0 && TickSyncMain.INSTANCE.clientTPS > 0)) {
-                return 1000 / TickSyncMain.INSTANCE.clientTPS;
-            }
-            else {
-                return 50;
-            }
+            float clientTPS = TickSyncMain.INSTANCE.clientTPS;
+            if (clientTPS > 0 && clientTPS != 20) return 1000 / clientTPS;
+            return 50;
         }
         return millis;
     };
