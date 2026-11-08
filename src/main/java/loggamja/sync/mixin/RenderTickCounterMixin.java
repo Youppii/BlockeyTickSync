@@ -28,7 +28,7 @@ public class RenderTickCounterMixin {
     private final FloatUnaryOperator targetMillisPerTick = millis -> {
         if (MinecraftClient.getInstance().world != null) {
             float clientTPS = TickSyncMain.INSTANCE.clientTPS;
-            if (clientTPS > 0 && clientTPS != 20) return 1000 / clientTPS;
+            if (clientTPS > 0 && clientTPS != 20.0f) return 1000 / clientTPS;
             return 50;
         }
         return millis;
