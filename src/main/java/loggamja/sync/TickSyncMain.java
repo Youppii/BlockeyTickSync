@@ -33,7 +33,7 @@ public class TickSyncMain implements ModInitializer {
 	String lastLoggedSyncStatus;
 
 	int afterLazyPacketCooldown;
-	int pendingTickShift;
+	int pendingShiftMs;
 	int entityPacketCallbacksThisTick;
 	Thread packetThread;
 	public int packetRange;
@@ -56,6 +56,7 @@ public class TickSyncMain implements ModInitializer {
 	final int outlierLimit = 8;
 	final int clampTolerance = 5;
 	static final int packetActiveTimeout = 250;
+	static final int MAX_STEP_MS = 4;
 
 	public final int samplingRange = 55;
 
@@ -235,14 +236,14 @@ public class TickSyncMain implements ModInitializer {
 		}
 		final long now = System.currentTimeMillis();
 
-		if (pendingTickShift == 0 && cfg.isTickSyncOn && isPlayingInGame() && canSync() && (now - lastSyncTime) > 1000) {
+		if (pendingShiftMs == 0 && cfg.isTickSyncOn && isPlayingInGame() && canSync() && (now - lastSyncTime) > 1000) {
 			if (cfg.margin == 0 && isWeirdSyncOccurred()) {
 				fixWeirdSync();
 			} else if (isTickSyncRequired()) {
 				matchTickSync();
 			}
 		}
-		if (pendingTickShift != 0) applyPendingTickShift();
+		if (pendingShiftMs != 0) applyPendingTickShift();
 	}
 
 	boolean isWeirdSyncOccurred() {
@@ -253,11 +254,11 @@ public class TickSyncMain implements ModInitializer {
 	}
 
 	void fixWeirdSync() {
-		if (packetDelayBuffer.isEmpty() || pendingTickShift != 0) return;
+		if (packetDelayBuffer.isEmpty() || pendingShiftMs != 0) return;
 
 		final float min = Math.min(getPacketMargin() / 2, Collections.min(packetDelayBuffer));
 		final int tickToPush = Math.max(2, quantizeToFrame(applyRatio((getPacketMargin() - min))));
-		pendingTickShift = tickToPush;
+		pendingShiftMs = tickToPush;
 
 		TickSyncHUDManager.INSTANCE.syncTextAlpha = 10;
 	}
@@ -288,7 +289,7 @@ public class TickSyncMain implements ModInitializer {
 	}
 
 	void matchTickSync() {
-		if (pendingTickShift != 0) return;
+		if (pendingShiftMs != 0) return;
 		final int tickToPush;
 
 		if (cfg.margin == 0) {
@@ -306,7 +307,7 @@ public class TickSyncMain implements ModInitializer {
 			tickToPush = clampCorrection;
 		}
 
-		pendingTickShift = tickToPush;
+		pendingShiftMs = tickToPush;
 		TickSyncHUDManager.INSTANCE.syncTextAlpha = 20;
 	}
 
@@ -324,11 +325,11 @@ public class TickSyncMain implements ModInitializer {
 	}
 
 	void applyPendingTickShift() {
-		final int shift = Integer.signum(pendingTickShift) * Math.min(4, Math.abs(pendingTickShift));
-		pendingTickShift -= shift;
+		final int shift = Integer.signum(pendingShiftMs) * Math.min(MAX_STEP_MS, Math.abs(pendingShiftMs));
+		pendingShiftMs -= shift;
 		shiftNextTickDuration(shift);
 		TickSyncTelemetry.logAdjustment("tick-sync", shift, avgPacketDelay, getPacketMargin());
-		if (pendingTickShift == 0) {
+		if (pendingShiftMs == 0) {
 			packetDelayBuffer.clear();
 			addToTickDeltaBuffer(getPacketMargin());
 			avgPacketDelay = getPacketMargin();

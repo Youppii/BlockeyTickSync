@@ -70,7 +70,7 @@ public class TickSyncHUDManager {
             setSyncStatus("Sync: Idle (No Moving Entities)", 0xAAAAAA);
         } else if (!main.canSync()) {
             setSyncStatus("Sync: PAUSED (High Jitter)", 0xFF5555);
-        } else if (main.pendingTickShift != 0 || main.isTickSyncRequired()) {
+        } else if (main.pendingShiftMs != 0 || main.isTickSyncRequired()) {
             setSyncStatus("Sync: Adjusting...", 0xFFFF55);
         } else {
             setSyncStatus("Sync: LOCKED IN", 0x55FF55);
