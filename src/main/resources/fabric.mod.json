@@ -3,7 +3,7 @@
 	"id": "tick-sync",
 	"version": "${version}",
 	"name": "Tick Sync",
-	"description": "서버에서 도착한 패킷과 클라이언트 틱 사이의 딜레이를 완화합니다.\nReduces the delay between server packets and client ticks.",
+	"description": "Reduces the delay between server packets and client ticks.",
 	"authors": [
 		"LogGamja",
 		"Tektonikal"

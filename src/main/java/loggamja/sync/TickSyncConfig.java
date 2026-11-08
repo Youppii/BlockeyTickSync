@@ -18,7 +18,7 @@ public class TickSyncConfig {
     public int margin = 0;
     public boolean useDebugScreen = false;
 
-    // 싱글톤
+    // Singleton
     public static final TickSyncConfig INSTANCE = new TickSyncConfig();
 
     public void load() {

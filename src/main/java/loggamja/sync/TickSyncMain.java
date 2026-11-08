@@ -48,7 +48,7 @@ public class TickSyncMain implements ModInitializer {
 	public float clientTPS = 20;
 	public float serverTPS = 20;
 
-	// 상수 정의
+	// Constant definitions
 	final int tickBufferSize = 10;
 	final int rangeBufferSize = 40;
 	final int fastRangeBufferSize = 10;
@@ -93,7 +93,7 @@ public class TickSyncMain implements ModInitializer {
 		isPacketReceivedThisTick = true;
 		entityPacketCallbacksThisTick++;
 
-		// Range 버퍼 업데이트
+		// Update the range buffer
 		if (!isPacketRangeUpdatedThisTick) {
 			final int delta = (int) (now - lastPacketRangeUpdatedTime);
 
@@ -102,7 +102,7 @@ public class TickSyncMain implements ModInitializer {
 				final int normalDeviation = (delta % getTickDuration() + halfDuration) % getTickDuration() - halfDuration;
 				addToPacketRangeBuffer(normalDeviation);
 			}
-			// 패킷이 드물게 올 경우
+			// When packets arrive infrequently
 			if (getTickDuration() * 2 <= delta) {
 				afterLazyPacketCooldown = 20;
 			}

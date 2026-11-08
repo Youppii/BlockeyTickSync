@@ -11,13 +11,11 @@ import net.minecraft.client.gui.widget.OptionListWidget;
 import net.minecraft.client.gui.widget.OptionSliderWidget;
 import net.minecraft.client.gui.widget.SliderWidget;
 import net.minecraft.client.option.SimpleOption;
-import net.minecraft.client.resource.language.LanguageManager;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.screen.ScreenTexts;
 import net.minecraft.text.Text;
 import net.minecraft.util.math.MathHelper;
 
-import java.util.Objects;
 
 public class TickSyncSetting extends Screen {
 
@@ -35,23 +33,6 @@ public class TickSyncSetting extends Screen {
     public TickSyncSetting() {
         super(Text.literal("Setting"));
     }
-    void setTextLang() {
-        MinecraftClient client = MinecraftClient.getInstance();
-        LanguageManager lm = client.getLanguageManager();
-
-        if (Objects.equals(lm.getLanguage(), "ko_kr")) {
-            TOGGLE_OPTIONS = new String[][] {
-                    { "틱 동기화: 꺼짐", "틱 동기화: 켜짐" },
-                    { "정확도: 고정(10ms)", "정확도: 자동(기본)" },
-                    { "디버그: 꺼짐", "디버그: 켜짐" }
-            };
-            tooltips = new String[] {
-                    "모든 틱 동기화 기능을 켜거나 끕니다.",
-                    "인터넷 품질과 관련된 제어 방법을 결정합니다.",
-                    "우상단 디버그 화면을 켜거나 끕니다."
-            };
-        }
-    }
     @Override
     protected void init() {
         super.init();
@@ -62,8 +43,6 @@ public class TickSyncSetting extends Screen {
 
         int startX = this.width / 2 - buttonWidth / 2;
         int startY = this.height / 5;
-
-        setTextLang();
 
         // Config load
         TickSyncConfig cfg = TickSyncConfig.INSTANCE;
@@ -134,7 +113,7 @@ public class TickSyncSetting extends Screen {
     }
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        //this.renderBackground(context, mouseX, mouseY, delta); 2중 블러 배경 렌더링. 21.6+에서 버그 발생
+        //this.renderBackground(context, mouseX, mouseY, delta); Renders a double-blurred background. Causes a bug in 21.6+.
         context.drawCenteredTextWithShadow(
                 this.textRenderer,
                 "Setting",
