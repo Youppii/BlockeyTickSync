@@ -2,6 +2,7 @@ package loggamja.sync.mixin;
 
 import it.unimi.dsi.fastutil.floats.FloatUnaryOperator;
 import loggamja.sync.TickSyncMain;
+import loggamja.sync.TickSyncTelemetry;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.render.RenderTickCounter;
 import org.spongepowered.asm.mixin.Final;
@@ -34,7 +35,9 @@ public class RenderTickCounterMixin {
     };
     @Inject(method = "beginRenderTick", at = @At("HEAD"), cancellable = true)
     public void beginRenderTick(long timeMillis, CallbackInfoReturnable<Integer> cir) {
-        this.lastFrameDuration = (float)(timeMillis - this.prevTimeMillis) / this.targetMillisPerTick.apply(this.tickTime);
+        long frameDurationMs = timeMillis - this.prevTimeMillis;
+        if (this.prevTimeMillis > 0 && frameDurationMs >= 85) TickSyncTelemetry.logFrameHitch(frameDurationMs);
+        this.lastFrameDuration = (float) frameDurationMs / this.targetMillisPerTick.apply(this.tickTime);
         this.prevTimeMillis = timeMillis;
         this.tickDelta = this.tickDelta + this.lastFrameDuration;
         int i = (int)this.tickDelta;

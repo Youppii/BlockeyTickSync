@@ -22,7 +22,6 @@ public abstract class InGameHudMixin {
         if (client.player == null || !TickSyncConfig.INSTANCE.useDebugScreen) return;
 
         TickSyncHUDManager hud = TickSyncHUDManager.INSTANCE;
-        final int right = client.getWindow().getScaledWidth() - 8;
         final int firstY = 8;
         final int spacing = 10;
         drawRightAligned(context, hud.syncStatus, firstY, hud.syncStatusColor);
@@ -33,7 +32,7 @@ public abstract class InGameHudMixin {
         drawRightAligned(context, "Packets: " + hud.packetsPerSecond + "/20 | Loss: " + hud.lossPercent + "% (" + hud.wrappedPerSecond + " Late)", firstY + spacing * 3, 0xFFFFFF);
         drawRightAligned(context, hud.puckStatus, firstY + spacing * 4, hud.puckStatusColor);
 
-        drawHistogram(context, hud, right, firstY + spacing * 5);
+        drawHistogram(context, hud, firstY + spacing * 5);
     }
 
     private void drawRightAligned(DrawContext context, String text, int y, int color) {
@@ -43,20 +42,16 @@ public abstract class InGameHudMixin {
         context.drawTextWithShadow(client.textRenderer, visible, x, y, color);
     }
 
-    private void drawHistogram(DrawContext context, TickSyncHUDManager hud, int right, int y) {
-        final int availableWidth = Math.max(0, client.getWindow().getScaledWidth() - 16);
-        final String leftLabel = client.textRenderer.trimToWidth("50ms", availableWidth);
-        final int leftLabelWidth = client.textRenderer.getWidth(leftLabel);
-        final String rightLabel = client.textRenderer.trimToWidth("0ms", Math.max(0, availableWidth - leftLabelWidth));
-        final int rightLabelWidth = client.textRenderer.getWidth(rightLabel);
-        final int labelGap = 3;
-        final int histogramWidth = Math.min(hud.samplingRange, Math.max(0, availableWidth - leftLabelWidth - rightLabelWidth - labelGap * 2));
-        final int gap = histogramWidth > 0 ? labelGap : 0;
-        final int groupWidth = leftLabelWidth + histogramWidth + rightLabelWidth + gap * 2;
-        final int groupX = right - groupWidth;
+    private void drawHistogram(DrawContext context, TickSyncHUDManager hud, int y) {
+        final int screenWidth = client.getWindow().getScaledWidth();
+        final String leftLabel = "50ms";
+        final String rightLabel = "0ms";
+        final int rightLabelX = screenWidth - client.textRenderer.getWidth(rightLabel) - 8;
+        final int histogramRight = rightLabelX - 4;
+        final int histogramLeft = histogramRight - hud.samplingRange;
+        final int leftLabelX = histogramLeft - client.textRenderer.getWidth(leftLabel) - 4;
 
-        context.drawTextWithShadow(client.textRenderer, leftLabel, groupX, y, 0xFFFFFF);
-        final int histogramX = groupX + leftLabelWidth + gap;
+        context.drawTextWithShadow(client.textRenderer, leftLabel, leftLabelX, y, 0xFFFFFF);
         for (int i = 0; i < hud.samplingRange; i++) {
             float intensity = hud.packetDelayHistogram[i];
             float red = intensity;
@@ -68,9 +63,9 @@ public abstract class InGameHudMixin {
             int r = (int) MathHelper.clamp(Math.round(255.0 * Math.pow(Math.max(red, 0.0), 1.0 / 2.2)), 0, 255);
             int g = (int) MathHelper.clamp(Math.round(255.0 * Math.pow(Math.max(green, 0.0), 1.0 / 2.2)), 0, 255);
             int b = (int) MathHelper.clamp(Math.round(255.0 * Math.pow(Math.max(blue, 0.0), 1.0 / 2.2)), 0, 255);
-            int x = histogramX + histogramWidth - 1 - i * histogramWidth / hud.samplingRange;
-            if (histogramWidth > 0) context.fill(x, y + 1, x + 1, y + 8, r << 16 | g << 8 | b);
+            context.fill(histogramLeft + i, y + 1, histogramLeft + i + 1, y + 8,
+                    0xFF000000 | r << 16 | g << 8 | b);
         }
-        context.drawTextWithShadow(client.textRenderer, rightLabel, histogramX + histogramWidth + gap, y, 0xFFFFFF);
+        context.drawTextWithShadow(client.textRenderer, rightLabel, rightLabelX, y, 0xFFFFFF);
     }
 }

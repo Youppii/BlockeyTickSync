@@ -39,7 +39,7 @@ public class TickSyncHUDManager {
         packetsPerSecond = 0;
         wrappedPerSecond = 0;
         for (int i = 0; i < WINDOW_SIZE; i++) {
-            packetsPerSecond += packetsPerTick[i];
+            if (activeTick[i] && packetsPerTick[i] > 0) packetsPerSecond++;
             if (activeTick[i]) {
                 activeSlots++;
                 if (packetsPerTick[i] > 0) receivedSlots++;
@@ -57,38 +57,40 @@ public class TickSyncHUDManager {
         targetMargin = main.getPacketMargin();
 
         if (!TickSyncConfig.INSTANCE.isTickSyncOn) {
-            setSyncStatus("PAUSED (Disabled)", 0xFF5555);
+            setSyncStatus("Sync: PAUSED (Disabled)", 0xFF5555);
         } else if (client.isPaused()) {
-            setSyncStatus("PAUSED (Game Paused)", 0xFF5555);
+            setSyncStatus("Sync: PAUSED (Game Paused)", 0xFF5555);
         } else if (client.world == null || client.player == null) {
-            setSyncStatus("PAUSED (Not in game)", 0xFF5555);
+            setSyncStatus("Sync: PAUSED (Not in game)", 0xFF5555);
         } else if (main.serverTPS > 20) {
-            setSyncStatus("PAUSED (Server TPS >20)", 0xFF5555);
+            setSyncStatus("Sync: PAUSED (Server TPS >20)", 0xFF5555);
         } else if (main.getCurrentFPS() <= 40) {
-            setSyncStatus("PAUSED (Low FPS)", 0xFF5555);
+            setSyncStatus("Sync: PAUSED (Low FPS)", 0xFF5555);
         } else if (!main.hasReceivedEntityPacket || System.currentTimeMillis() - main.lastServerPacketTime >= TickSyncMain.packetActiveTimeout) {
-            setSyncStatus("Idle (No Moving Entities)", 0xAAAAAA);
+            setSyncStatus("Sync: Idle (No Moving Entities)", 0xAAAAAA);
         } else if (!main.canSync()) {
-            setSyncStatus("PAUSED (High Jitter)", 0xFF5555);
+            setSyncStatus("Sync: PAUSED (High Jitter)", 0xFF5555);
         } else if (main.pendingTickShift != 0 || main.isTickSyncRequired()) {
-            setSyncStatus("Adjusting...", 0xFFFF55);
+            setSyncStatus("Sync: Adjusting...", 0xFFFF55);
         } else {
-            setSyncStatus("LOCKED IN", 0x55FF55);
+            setSyncStatus("Sync: LOCKED IN", 0x55FF55);
         }
 
-        if (avgPacketDelay < targetMargin - 3) delayStatus = "Fast";
-        else if (avgPacketDelay <= targetMargin + 3) delayStatus = "Good";
-        else if (avgPacketDelay <= targetMargin + 8) delayStatus = "Slow";
+        // Reuse the existing 25ms target, 38ms Late point, and 55ms histogram ceiling.
+        if (avgPacketDelay <= 25) delayStatus = "Fast";
+        else if (avgPacketDelay < 38) delayStatus = "Good";
+        else if (avgPacketDelay < samplingRange) delayStatus = "Slow";
         else delayStatus = "Lagging";
 
-        if (packetRange <= 5) {
-            puckStatus = "Smooth";
+        // Existing 8ms outlier limit and 16ms automatic cushion ceiling bound puck jitter states.
+        if (packetRange <= 8) {
+            puckStatus = "Puck: Smooth";
             puckStatusColor = 0x55FF55;
-        } else if (packetRange <= 10) {
-            puckStatus = "Slight Stutter (Try Margin ~" + (packetRange + 5) + ")";
+        } else if (packetRange <= 16) {
+            puckStatus = "Puck: Slight Stutter (Try Margin ~" + (packetRange + 5) + ")";
             puckStatusColor = 0xFFFF55;
         } else {
-            puckStatus = "Stuttering (Set Margin ~" + (packetRange + 5) + ")";
+            puckStatus = "Puck: Stuttering (Set Margin ~" + (packetRange + 5) + ")";
             puckStatusColor = 0xFF5555;
         }
 

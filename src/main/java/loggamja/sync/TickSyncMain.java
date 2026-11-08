@@ -2,6 +2,7 @@ package loggamja.sync;
 
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 import net.fabricmc.loader.api.FabricLoader;
 import net.fabricmc.loader.api.ModContainer;
 import net.fabricmc.loader.api.Version;
@@ -27,6 +28,10 @@ public class TickSyncMain implements ModInitializer {
 	boolean isPacketRangeUpdatedThisTick;
 	boolean packetThreadObserved;
 	boolean hasReceivedEntityPacket;
+	boolean lateDelayRecorded;
+	int lateEventsThisSecond;
+	long lastTelemetrySummaryTime = System.currentTimeMillis();
+	String lastLoggedSyncStatus;
 
 	int afterLazyPacketCooldown;
 	int pendingTickShift;
@@ -49,7 +54,6 @@ public class TickSyncMain implements ModInitializer {
 	final int fastRangeBufferSize = 10;
 
 	final int outlierLimit = 8;
-	final int syncThresholdOffset = 2;
 	final int clampTolerance = 5;
 	static final int packetActiveTimeout = 250;
 
@@ -66,9 +70,11 @@ public class TickSyncMain implements ModInitializer {
 	public void onInitialize() {
 		ClientTickEvents.START_CLIENT_TICK.register(client -> INSTANCE.onClientTickStart());
 		ClientTickEvents.END_CLIENT_TICK.register(client -> INSTANCE.onClientTickEnd());
+		ClientLifecycleEvents.CLIENT_STOPPING.register(client -> TickSyncTelemetry.shutdown());
 
 		TickSyncConfig.INSTANCE.load();
 		cfg = TickSyncConfig.INSTANCE;
+		TickSyncTelemetry.start();
 	}
 
 	public synchronized void onEntityPacket() {
@@ -81,6 +87,7 @@ public class TickSyncMain implements ModInitializer {
 		final long now = System.currentTimeMillis();
 
 		lastServerPacketTime = now;
+		lateDelayRecorded = false;
 		hasReceivedEntityPacket = true;
 		isPacketReceivedThisTick = true;
 		entityPacketCallbacksThisTick++;
@@ -147,6 +154,21 @@ public class TickSyncMain implements ModInitializer {
 			instantPacketRange = calculateRange(fastPacketRangeBuffer, fastRangeBufferSize);
 		}
 		TickSyncHUDManager.INSTANCE.updateHUD();
+		if (packetDelay >= 38 && packetDelay < packetActiveTimeout && !lateDelayRecorded) {
+			lateDelayRecorded = true;
+			lateEventsThisSecond++;
+			TickSyncTelemetry.logLateEvent(packetDelay);
+		}
+		String syncStatus = TickSyncHUDManager.INSTANCE.syncStatus;
+		if (!syncStatus.equals(lastLoggedSyncStatus)) {
+			TickSyncTelemetry.logSyncEvent(syncStatus);
+			lastLoggedSyncStatus = syncStatus;
+		}
+		if (now - lastTelemetrySummaryTime >= 1000) {
+			TickSyncTelemetry.logSummary(avgPacketDelay, TickSyncHUDManager.INSTANCE, lateEventsThisSecond);
+			lateEventsThisSecond = 0;
+			lastTelemetrySummaryTime = now;
+		}
 		isPacketRangeUpdatedThisTick = false;
 		isPacketReceivedThisTick = false;
 	}
@@ -253,7 +275,7 @@ public class TickSyncMain implements ModInitializer {
 	}
 
 	int getThreshold() {
-		final int threshold = (int) applyRatio(getPacketMargin()) + syncThresholdOffset;
+		final int threshold = (int) applyRatio(getPacketMargin()) + 2;
 
 		if (threshold < getFrameDuration()) {
 			return (int) (getFrameDuration() * 1.5f);
@@ -290,9 +312,8 @@ public class TickSyncMain implements ModInitializer {
 	}
 
 	int quantizeToFrame(float margin) {
-		if (cfg.margin == 0) return Math.max((int) Math.ceil(getFrameDuration()) + 1, Math.round(margin));
-		if (margin < getFrameDuration()) return (int) getFrameDuration();
-		return (int) (Math.round(margin / getFrameDuration()) * getFrameDuration());
+		int minSafeForFps = (int) Math.ceil(getFrameDuration()) + 1;
+		return Math.max(minSafeForFps, Math.round(margin));
 	}
 
 	int getMatchSyncOffset() {
@@ -307,6 +328,7 @@ public class TickSyncMain implements ModInitializer {
 		final int shift = Integer.signum(pendingTickShift) * Math.min(4, Math.abs(pendingTickShift));
 		pendingTickShift -= shift;
 		shiftNextTickDuration(shift);
+		TickSyncTelemetry.logAdjustment("tick-sync", shift, avgPacketDelay, getPacketMargin());
 		if (pendingTickShift == 0) {
 			packetDelayBuffer.clear();
 			addToTickDeltaBuffer(getPacketMargin());
