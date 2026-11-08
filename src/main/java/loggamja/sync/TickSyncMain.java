@@ -26,7 +26,6 @@ public class TickSyncMain implements ModInitializer {
 	boolean isTickRateChangedLastTick;
 	boolean isPacketReceivedThisTick;
 	boolean isPacketRangeUpdatedThisTick;
-	boolean packetThreadObserved;
 	boolean hasReceivedEntityPacket;
 	boolean lateDelayRecorded;
 	int lateEventsThisSecond;
@@ -36,6 +35,7 @@ public class TickSyncMain implements ModInitializer {
 	int afterLazyPacketCooldown;
 	int pendingTickShift;
 	int entityPacketCallbacksThisTick;
+	Thread packetThread;
 	public int packetRange;
 	public int instantPacketRange;
 	public int avgPacketDelay;
@@ -78,11 +78,10 @@ public class TickSyncMain implements ModInitializer {
 	}
 
 	public synchronized void onEntityPacket() {
-		if (clientThread != null && Thread.currentThread() != clientThread) {
-			packetThreadObserved = true;
-		} else if (packetThreadObserved && Thread.currentThread() == clientThread) {
-			return;
-		}
+		Thread currentThread = Thread.currentThread();
+		if (currentThread == clientThread) return;
+		if (packetThread == null) packetThread = currentThread;
+		else if (packetThread != currentThread) return;
 
 		final long now = System.currentTimeMillis();
 
