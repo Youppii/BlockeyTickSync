@@ -75,6 +75,7 @@ public class TickSyncMain implements ModInitializer {
 
 		TickSyncConfig.INSTANCE.load();
 		cfg = TickSyncConfig.INSTANCE;
+		cfg.margin = MathHelper.clamp(cfg.margin, 0, 40);
 		TickSyncTelemetry.start();
 	}
 
