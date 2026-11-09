@@ -2,6 +2,8 @@ package loggamja.sync;
 
 import net.minecraft.client.MinecraftClient;
 
+import java.util.Arrays;
+
 public class TickSyncHUDManager {
     public int packetRange;
     public int avgPacketDelay;
@@ -26,6 +28,20 @@ public class TickSyncHUDManager {
     private int windowIndex;
 
     public static final TickSyncHUDManager INSTANCE = new TickSyncHUDManager();
+
+    void resetSampling() {
+        Arrays.fill(packetDelayHistogram, 0);
+        Arrays.fill(packetsPerTick, 0);
+        Arrays.fill(activeTick, false);
+        Arrays.fill(wrappedTick, false);
+        windowIndex = 0;
+        packetsPerSecond = 0;
+        lossPercent = 0;
+        wrappedPerSecond = 0;
+        packetRange = 0;
+        avgPacketDelay = 0;
+        syncTextAlpha = 0;
+    }
 
     public void recordClientTick(int packetCallbacks, int packetDelay, boolean hasReceivedEntityPacket) {
         final boolean active = hasReceivedEntityPacket && 0 <= packetDelay && packetDelay < TickSyncMain.packetActiveTimeout;

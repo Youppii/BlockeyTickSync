@@ -3,12 +3,14 @@ package loggamja.sync;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.loader.api.FabricLoader;
 import net.fabricmc.loader.api.ModContainer;
 import net.fabricmc.loader.api.Version;
 import net.fabricmc.loader.api.VersionParsingException;
 import net.fabricmc.loader.api.metadata.ModMetadata;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.network.ClientPlayNetworkHandler;
 import net.minecraft.client.world.ClientWorld;
 import net.minecraft.util.math.MathHelper;
 import org.slf4j.Logger;
@@ -36,10 +38,10 @@ public class TickSyncMain implements ModInitializer {
 	int pendingShiftMs;
 	int entityPacketCallbacksThisTick;
 	Thread packetThread;
+	ClientPlayNetworkHandler networkHandler;
 	public int packetRange;
 	public int instantPacketRange;
 	public int avgPacketDelay;
-	Thread clientThread;
 
 	long lastSyncTime = System.currentTimeMillis();
 	long lastServerPacketTime = System.currentTimeMillis();
@@ -70,6 +72,8 @@ public class TickSyncMain implements ModInitializer {
 		ClientTickEvents.START_CLIENT_TICK.register(client -> INSTANCE.onClientTickStart());
 		ClientTickEvents.END_CLIENT_TICK.register(client -> INSTANCE.onClientTickEnd());
 		ClientLifecycleEvents.CLIENT_STOPPING.register(client -> TickSyncTelemetry.shutdown());
+		ClientPlayConnectionEvents.INIT.register((handler, client) -> INSTANCE.resetConnection(handler));
+		ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> client.execute(() -> INSTANCE.onDisconnect(handler)));
 
 		TickSyncConfig.INSTANCE.load();
 		cfg = TickSyncConfig.INSTANCE;
@@ -77,9 +81,45 @@ public class TickSyncMain implements ModInitializer {
 		TickSyncTelemetry.start();
 	}
 
-	public synchronized void onEntityPacket() {
+	synchronized void resetConnection(ClientPlayNetworkHandler handler) {
+		networkHandler = handler;
+		packetThread = null;
+		isTickRateChangedLastTick = false;
+		isPacketReceivedThisTick = false;
+		isPacketRangeUpdatedThisTick = false;
+		hasReceivedEntityPacket = false;
+		lateDelayRecorded = false;
+		lateEventsThisSecond = 0;
+		lastLoggedSyncStatus = null;
+		afterLazyPacketCooldown = 0;
+		pendingShiftMs = 0;
+		entityPacketCallbacksThisTick = 0;
+		packetRange = 0;
+		instantPacketRange = 0;
+		avgPacketDelay = 0;
+		final long now = System.currentTimeMillis();
+		lastSyncTime = now;
+		lastServerPacketTime = now;
+		lastPacketRangeUpdatedTime = now;
+		lastTelemetrySummaryTime = now;
+		clientTPS = 20;
+		serverTPS = 20;
+		packetDelayBuffer.clear();
+		packetDelayBuffer.add(12);
+		packetRangeBuffer.clear();
+		packetRangeBuffer.add(0);
+		fastPacketRangeBuffer.clear();
+		fastPacketRangeBuffer.add(0);
+		TickSyncHUDManager.INSTANCE.resetSampling();
+	}
+
+	synchronized void onDisconnect(ClientPlayNetworkHandler handler) {
+		if (networkHandler == handler) resetConnection(null);
+	}
+
+	public synchronized void onEntityPacket(ClientPlayNetworkHandler handler) {
+		if (handler != networkHandler || MinecraftClient.getInstance().isOnThread()) return;
 		Thread currentThread = Thread.currentThread();
-		if (currentThread == clientThread) return;
 		if (packetThread == null) packetThread = currentThread;
 		else if (packetThread != currentThread) return;
 
@@ -132,7 +172,6 @@ public class TickSyncMain implements ModInitializer {
 	}
 
 	public synchronized void onClientTickStart() {
-		clientThread = Thread.currentThread();
 		final long now = System.currentTimeMillis();
 		final int packetDelay = (int) (now - lastServerPacketTime);
 		TickSyncHUDManager.INSTANCE.recordClientTick(entityPacketCallbacksThisTick, packetDelay, hasReceivedEntityPacket);

@@ -17,6 +17,6 @@ import java.awt.*;
 public class ClientPlayNetworkHandlerMixin {
     @Inject(method = "onEntity", at = @At("HEAD"))
     private void onEntityUpdate(EntityS2CPacket packet, CallbackInfo ci) {
-        TickSyncMain.INSTANCE.onEntityPacket();
+        TickSyncMain.INSTANCE.onEntityPacket((ClientPlayNetworkHandler) (Object) this);
     }
 }
