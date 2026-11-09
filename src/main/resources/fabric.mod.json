@@ -18,6 +18,9 @@
 	"entrypoints": {
 		"main": [
           "loggamja.sync.TickSyncMain"
+		],
+		"modmenu": [
+			"loggamja.sync.TickSyncModMenu"
 		]
 	},
 	"mixins": [
@@ -30,6 +33,7 @@
 		"fabric-api": "*"
 	},
 	"suggests": {
+		"modmenu": "*"
 	},
     "breaks": {
         "mcrider-sync": "*",

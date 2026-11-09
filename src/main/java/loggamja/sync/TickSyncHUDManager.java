@@ -64,7 +64,7 @@ public class TickSyncHUDManager {
             setSyncStatus("Sync: PAUSED (Not in game)", 0xFF5555);
         } else if (main.serverTPS > 20) {
             setSyncStatus("Sync: PAUSED (Server TPS >20)", 0xFF5555);
-        } else if (main.getCurrentFPS() <= 40) {
+        } else if (main.getCurrentFPS() <= TickSyncConfig.INSTANCE.minimumFps) {
             setSyncStatus("Sync: PAUSED (Low FPS)", 0xFF5555);
         } else if (!main.hasReceivedEntityPacket || System.currentTimeMillis() - main.lastServerPacketTime >= TickSyncMain.packetActiveTimeout) {
             setSyncStatus("Sync: Idle (No Moving Entities)", 0xAAAAAA);

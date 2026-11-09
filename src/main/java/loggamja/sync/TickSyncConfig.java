@@ -17,6 +17,18 @@ public class TickSyncConfig {
     public boolean isTickSyncOn = true;
     public int margin = 0;
     public boolean useDebugScreen = false;
+    public int minimumFps = 40;
+    public int syncCooldownMs = 1000;
+    public int maxStepMs = 4;
+    public int clampTolerance = 5;
+    public int hudPosition = 0;
+    public boolean showDelay = true;
+    public boolean showJitter = true;
+    public boolean showPacketStats = true;
+    public boolean showPuckStatus = true;
+    public boolean showHistogram = true;
+    public boolean hudTextShadow = true;
+    public volatile boolean enableTelemetry = true;
 
     // Singleton
     public static final TickSyncConfig INSTANCE = new TickSyncConfig();
@@ -27,14 +39,35 @@ public class TickSyncConfig {
         try (FileReader reader = new FileReader(CONFIG_FILE)) {
             TickSyncConfig loaded = GSON.fromJson(reader, TickSyncConfig.class);
             if (loaded != null) {
-                this.isTickSyncOn = loaded.isTickSyncOn;
-                this.margin = MathHelper.clamp(loaded.margin, 0, 40);
-                this.useDebugScreen = loaded.useDebugScreen;
+                copyFrom(loaded);
             }
         } catch (IOException e) {
             e.printStackTrace();
         }
     }
+
+    public void resetToDefaults() {
+        copyFrom(new TickSyncConfig());
+    }
+
+    private void copyFrom(TickSyncConfig loaded) {
+        this.isTickSyncOn = loaded.isTickSyncOn;
+        this.margin = MathHelper.clamp(loaded.margin, 0, 40);
+        this.useDebugScreen = loaded.useDebugScreen;
+        this.minimumFps = MathHelper.clamp(loaded.minimumFps, 20, 240);
+        this.syncCooldownMs = MathHelper.clamp(loaded.syncCooldownMs, 100, 5000);
+        this.maxStepMs = MathHelper.clamp(loaded.maxStepMs, 1, 10);
+        this.clampTolerance = MathHelper.clamp(loaded.clampTolerance, 0, 20);
+        this.hudPosition = MathHelper.clamp(loaded.hudPosition, 0, 3);
+        this.showDelay = loaded.showDelay;
+        this.showJitter = loaded.showJitter;
+        this.showPacketStats = loaded.showPacketStats;
+        this.showPuckStatus = loaded.showPuckStatus;
+        this.showHistogram = loaded.showHistogram;
+        this.hudTextShadow = loaded.hudTextShadow;
+        this.enableTelemetry = loaded.enableTelemetry;
+    }
+
     public void save() {
         try (FileWriter writer = new FileWriter(CONFIG_FILE)) {
             GSON.toJson(this, writer);

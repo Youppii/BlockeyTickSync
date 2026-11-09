@@ -19,39 +19,56 @@ public abstract class InGameHudMixin {
 
     @Inject(method = "render", at = @At("HEAD"))
     private void onRender(DrawContext context, float tickDelta, CallbackInfo ci) {
-        if (client.player == null || !TickSyncConfig.INSTANCE.useDebugScreen) return;
+        TickSyncConfig cfg = TickSyncConfig.INSTANCE;
+        if (client.player == null || !cfg.useDebugScreen) return;
 
         TickSyncHUDManager hud = TickSyncHUDManager.INSTANCE;
-        final int firstY = 8;
         final int spacing = 10;
-        drawRightAligned(context, hud.syncStatus, firstY, hud.syncStatusColor);
-        drawRightAligned(context, "Hit Delay: " + hud.avgPacketDelay + "ms (" + hud.delayStatus + ")", firstY + spacing, 0xFFFFFF);
+        final int rows = 1 + (cfg.showDelay ? 1 : 0) + (cfg.showJitter ? 1 : 0)
+                + (cfg.showPacketStats ? 1 : 0) + (cfg.showPuckStatus ? 1 : 0) + (cfg.showHistogram ? 1 : 0);
+        int y = cfg.hudPosition < 2 ? 8 : Math.max(8, client.getWindow().getScaledHeight() - 8 - rows * spacing);
+        drawHudText(context, hud.syncStatus, y, hud.syncStatusColor);
+        y += spacing;
+        if (cfg.showDelay) {
+            drawHudText(context, "Hit Delay: " + hud.avgPacketDelay + "ms (" + hud.delayStatus + ")", y, 0xFFFFFF);
+            y += spacing;
+        }
 
-        String mode = TickSyncConfig.INSTANCE.margin == 0 ? "Auto" : "Set " + TickSyncConfig.INSTANCE.margin;
-        drawRightAligned(context, "Jitter: " + hud.packetRange + "ms | Cushion: " + hud.targetMargin + "ms (" + mode + ")", firstY + spacing * 2, 0xFFFFFF);
-        drawRightAligned(context, "Packets: " + hud.packetsPerSecond + "/20 | Loss: " + hud.lossPercent + "% (" + hud.wrappedPerSecond + " Late)", firstY + spacing * 3, 0xFFFFFF);
-        drawRightAligned(context, hud.puckStatus, firstY + spacing * 4, hud.puckStatusColor);
+        if (cfg.showJitter) {
+            String mode = cfg.margin == 0 ? "Auto" : "Set " + cfg.margin;
+            drawHudText(context, "Jitter: " + hud.packetRange + "ms | Cushion: " + hud.targetMargin + "ms (" + mode + ")", y, 0xFFFFFF);
+            y += spacing;
+        }
+        if (cfg.showPacketStats) {
+            drawHudText(context, "Packets: " + hud.packetsPerSecond + "/20 | Loss: " + hud.lossPercent + "% (" + hud.wrappedPerSecond + " Late)", y, 0xFFFFFF);
+            y += spacing;
+        }
+        if (cfg.showPuckStatus) {
+            drawHudText(context, hud.puckStatus, y, hud.puckStatusColor);
+            y += spacing;
+        }
 
-        drawHistogram(context, hud, firstY + spacing * 5);
+        if (cfg.showHistogram) drawHistogram(context, hud, y);
     }
 
-    private void drawRightAligned(DrawContext context, String text, int y, int color) {
+    private void drawHudText(DrawContext context, String text, int y, int color) {
         final int screenWidth = client.getWindow().getScaledWidth();
         String visible = client.textRenderer.trimToWidth(text, Math.max(0, screenWidth - 16));
-        int x = screenWidth - 8 - client.textRenderer.getWidth(visible);
-        context.drawTextWithShadow(client.textRenderer, visible, x, y, color);
+        int x = TickSyncConfig.INSTANCE.hudPosition % 2 == 0 ? screenWidth - 8 - client.textRenderer.getWidth(visible) : 8;
+        context.drawText(client.textRenderer, visible, x, y, color, TickSyncConfig.INSTANCE.hudTextShadow);
     }
 
     private void drawHistogram(DrawContext context, TickSyncHUDManager hud, int y) {
         final int screenWidth = client.getWindow().getScaledWidth();
         final String leftLabel = "50ms";
         final String rightLabel = "0ms";
-        final int rightLabelX = screenWidth - client.textRenderer.getWidth(rightLabel) - 8;
-        final int histogramRight = rightLabelX - 4;
-        final int histogramLeft = histogramRight - hud.samplingRange;
+        final int histogramLeft = TickSyncConfig.INSTANCE.hudPosition % 2 == 0
+                ? screenWidth - client.textRenderer.getWidth(rightLabel) - 12 - hud.samplingRange
+                : 12 + client.textRenderer.getWidth(leftLabel);
         final int leftLabelX = histogramLeft - client.textRenderer.getWidth(leftLabel) - 4;
+        final int rightLabelX = histogramLeft + hud.samplingRange + 4;
 
-        context.drawTextWithShadow(client.textRenderer, leftLabel, leftLabelX, y, 0xFFFFFF);
+        context.drawText(client.textRenderer, leftLabel, leftLabelX, y, 0xFFFFFF, TickSyncConfig.INSTANCE.hudTextShadow);
         for (int i = 0; i < hud.samplingRange; i++) {
             float intensity = hud.packetDelayHistogram[i];
             float red = intensity;
@@ -66,6 +83,6 @@ public abstract class InGameHudMixin {
             context.fill(histogramLeft + i, y + 1, histogramLeft + i + 1, y + 8,
                     0xFF000000 | r << 16 | g << 8 | b);
         }
-        context.drawTextWithShadow(client.textRenderer, rightLabel, rightLabelX, y, 0xFFFFFF);
+        context.drawText(client.textRenderer, rightLabel, rightLabelX, y, 0xFFFFFF, TickSyncConfig.INSTANCE.hudTextShadow);
     }
 }

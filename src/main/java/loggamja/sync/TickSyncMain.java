@@ -54,9 +54,7 @@ public class TickSyncMain implements ModInitializer {
 	final int fastRangeBufferSize = 10;
 
 	final int outlierLimit = 8;
-	final int clampTolerance = 5;
 	static final int packetActiveTimeout = 250;
-	static final int MAX_STEP_MS = 4;
 
 	public final int samplingRange = 55;
 
@@ -125,8 +123,8 @@ public class TickSyncMain implements ModInitializer {
 	}
 
 	public boolean canSync() {
-		if (cfg.margin == 0) return serverTPS <= 20 && getCurrentFPS() > 40 && instantPacketRange < applyRatio(25);
-		else return serverTPS <= 20 && getCurrentFPS() > 40;
+		if (cfg.margin == 0) return serverTPS <= 20 && getCurrentFPS() > cfg.minimumFps && instantPacketRange < applyRatio(25);
+		else return serverTPS <= 20 && getCurrentFPS() > cfg.minimumFps;
 	}
 
 	int getCurrentFPS() {
@@ -237,7 +235,7 @@ public class TickSyncMain implements ModInitializer {
 		}
 		final long now = System.currentTimeMillis();
 
-		if (pendingShiftMs == 0 && cfg.isTickSyncOn && isPlayingInGame() && canSync() && (now - lastSyncTime) > 1000) {
+		if (pendingShiftMs == 0 && cfg.isTickSyncOn && isPlayingInGame() && canSync() && (now - lastSyncTime) > cfg.syncCooldownMs) {
 			if (cfg.margin == 0 && isWeirdSyncOccurred()) {
 				fixWeirdSync();
 			} else if (isTickSyncRequired()) {
@@ -272,7 +270,7 @@ public class TickSyncMain implements ModInitializer {
 	boolean isTickSyncRequired() {
 		if (cfg.margin == 0) return getThreshold() < avgPacketDelay;
 
-		return avgPacketDelay < cfg.margin || avgPacketDelay > cfg.margin + clampTolerance;
+		return avgPacketDelay < cfg.margin || avgPacketDelay > cfg.margin + cfg.clampTolerance;
 	}
 
 	int getThreshold() {
@@ -299,7 +297,7 @@ public class TickSyncMain implements ModInitializer {
 			if (autoCorrection > getTickDuration() / 2) autoCorrection -= getTickDuration();
 			tickToPush = autoCorrection;
 		} else {
-			final int targetDelay = Math.min(getTickDuration() - 1, cfg.margin + clampTolerance / 2);
+			final int targetDelay = Math.min(getTickDuration() - 1, cfg.margin + cfg.clampTolerance / 2);
 			int clampCorrection = targetDelay - avgPacketDelay;
 			final int halfTick = getTickDuration() / 2;
 
@@ -326,7 +324,7 @@ public class TickSyncMain implements ModInitializer {
 	}
 
 	void applyPendingTickShift() {
-		final int shift = Integer.signum(pendingShiftMs) * Math.min(MAX_STEP_MS, Math.abs(pendingShiftMs));
+		final int shift = Integer.signum(pendingShiftMs) * Math.min(cfg.maxStepMs, Math.abs(pendingShiftMs));
 		pendingShiftMs -= shift;
 		shiftNextTickDuration(shift);
 		TickSyncTelemetry.logAdjustment("tick-sync", shift, avgPacketDelay, getPacketMargin());

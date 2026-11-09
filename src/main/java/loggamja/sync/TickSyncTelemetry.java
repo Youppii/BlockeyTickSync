@@ -29,6 +29,7 @@ public final class TickSyncTelemetry {
     private TickSyncTelemetry() { }
 
     public static void start() {
+        if (!TickSyncConfig.INSTANCE.enableTelemetry) return;
         if (!STARTED.compareAndSet(false, true)) return;
         Thread writer = new Thread(TickSyncTelemetry::writeEvents, "TickSync telemetry writer");
         writer.setDaemon(false);
@@ -59,6 +60,8 @@ public final class TickSyncTelemetry {
     }
 
     private static void log(String event) {
+        if (!TickSyncConfig.INSTANCE.enableTelemetry) return;
+        start();
         if (STARTED.get() && !STOPPING.get()) EVENTS.offer(Instant.now() + " " + event);
     }
 
