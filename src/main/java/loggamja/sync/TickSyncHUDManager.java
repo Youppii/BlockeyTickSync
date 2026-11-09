@@ -15,6 +15,8 @@ public class TickSyncHUDManager {
     public String syncStatus = "PAUSED (Not in game)";
     public int syncStatusColor = 0xAAAAAA;
     public String delayStatus = "Good";
+    public int delayStatusColor = 0xAAAAAA;
+    public int packetStatsColor = 0xAAAAAA;
     public String puckStatus = "Smooth";
     public int puckStatusColor = 0x55FF55;
 
@@ -71,18 +73,20 @@ public class TickSyncHUDManager {
         packetRange = main.packetRange;
         avgPacketDelay = main.avgPacketDelay;
         targetMargin = main.getPacketMargin();
+        boolean hasActiveSamples = client.world != null && client.player != null && !client.isPaused()
+                && main.hasReceivedEntityPacket && System.currentTimeMillis() - main.lastServerPacketTime < TickSyncMain.packetActiveTimeout;
 
         if (!TickSyncConfig.INSTANCE.isTickSyncOn) {
-            setSyncStatus("Sync: PAUSED (Disabled)", 0xFF5555);
+            setSyncStatus("Sync: PAUSED (Disabled)", 0xAAAAAA);
         } else if (client.isPaused()) {
-            setSyncStatus("Sync: PAUSED (Game Paused)", 0xFF5555);
+            setSyncStatus("Sync: PAUSED (Game Paused)", 0xAAAAAA);
         } else if (client.world == null || client.player == null) {
-            setSyncStatus("Sync: PAUSED (Not in game)", 0xFF5555);
+            setSyncStatus("Sync: PAUSED (Not in game)", 0xAAAAAA);
         } else if (main.serverTPS > 20) {
             setSyncStatus("Sync: PAUSED (Server TPS >20)", 0xFF5555);
         } else if (main.getCurrentFPS() <= TickSyncConfig.INSTANCE.minimumFps) {
             setSyncStatus("Sync: PAUSED (Low FPS)", 0xFF5555);
-        } else if (!main.hasReceivedEntityPacket || System.currentTimeMillis() - main.lastServerPacketTime >= TickSyncMain.packetActiveTimeout) {
+        } else if (!hasActiveSamples) {
             setSyncStatus("Sync: Idle (No Moving Entities)", 0xAAAAAA);
         } else if (!main.canSync()) {
             setSyncStatus("Sync: PAUSED (High Jitter)", 0xFF5555);
@@ -97,6 +101,11 @@ public class TickSyncHUDManager {
         else if (avgPacketDelay < 38) delayStatus = "Good";
         else if (avgPacketDelay < samplingRange) delayStatus = "Slow";
         else delayStatus = "Lagging";
+        delayStatusColor = avgPacketDelay < 38 ? 0x55FF55 : avgPacketDelay < samplingRange ? 0xFFFF55 : 0xFF5555;
+
+        if (lossPercent >= 25 || wrappedPerSecond >= WINDOW_SIZE / 4) packetStatsColor = 0xFF5555;
+        else if (lossPercent > 0 || wrappedPerSecond > 0) packetStatsColor = 0xFFFF55;
+        else packetStatsColor = 0x55FF55;
 
         // Existing 8ms outlier limit and 16ms automatic cushion ceiling bound puck jitter states.
         if (packetRange <= 8) {
@@ -108,6 +117,12 @@ public class TickSyncHUDManager {
         } else {
             puckStatus = "Puck: Stuttering (Set Margin ~" + (packetRange + 5) + ")";
             puckStatusColor = 0xFF5555;
+        }
+
+        if (!hasActiveSamples) {
+            delayStatusColor = 0xAAAAAA;
+            packetStatsColor = 0xAAAAAA;
+            puckStatusColor = 0xAAAAAA;
         }
 
         fadeDebugHistogram();

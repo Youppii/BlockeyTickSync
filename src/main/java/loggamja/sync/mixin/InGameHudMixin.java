@@ -30,17 +30,17 @@ public abstract class InGameHudMixin {
         drawHudText(context, hud.syncStatus, y, hud.syncStatusColor);
         y += spacing;
         if (cfg.showDelay) {
-            drawHudText(context, "Hit Delay: " + hud.avgPacketDelay + "ms (" + hud.delayStatus + ")", y, 0xFFFFFF);
+            drawHudText(context, "Hit Delay: " + hud.avgPacketDelay + "ms (" + hud.delayStatus + ")", y, hud.delayStatusColor);
             y += spacing;
         }
 
         if (cfg.showJitter) {
             String mode = cfg.margin == 0 ? "Auto" : "Set " + cfg.margin;
-            drawHudText(context, "Jitter: " + hud.packetRange + "ms | Cushion: " + hud.targetMargin + "ms (" + mode + ")", y, 0xFFFFFF);
+            drawHudText(context, "Jitter: " + hud.packetRange + "ms | Cushion: " + hud.targetMargin + "ms (" + mode + ")", y, hud.puckStatusColor);
             y += spacing;
         }
         if (cfg.showPacketStats) {
-            drawHudText(context, "Packets: " + hud.packetsPerSecond + "/20 | Loss: " + hud.lossPercent + "% (" + hud.wrappedPerSecond + " Late)", y, 0xFFFFFF);
+            drawHudText(context, "Packets: " + hud.packetsPerSecond + "/20 | Loss: " + hud.lossPercent + "% (" + hud.wrappedPerSecond + " Late)", y, hud.packetStatsColor);
             y += spacing;
         }
         if (cfg.showPuckStatus) {
