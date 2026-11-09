@@ -26,6 +26,7 @@ public class TickSyncMain implements ModInitializer {
 	public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
 	boolean isTickRateChangedLastTick;
+	boolean isTickRatePendingRender;
 	boolean isPacketReceivedThisTick;
 	boolean isPacketRangeUpdatedThisTick;
 	boolean hasReceivedEntityPacket;
@@ -85,6 +86,7 @@ public class TickSyncMain implements ModInitializer {
 		networkHandler = handler;
 		packetThread = null;
 		isTickRateChangedLastTick = false;
+		isTickRatePendingRender = false;
 		isPacketReceivedThisTick = false;
 		isPacketRangeUpdatedThisTick = false;
 		hasReceivedEntityPacket = false;
@@ -267,7 +269,12 @@ public class TickSyncMain implements ModInitializer {
 		}
 	}
 
+	public synchronized void onTickRateUsed() {
+		isTickRatePendingRender = false;
+	}
+
 	synchronized void onClientTickEnd() {
+		if (isTickRatePendingRender) return;
 		if (isTickRateChangedLastTick) {
 			isTickRateChangedLastTick = false;
 			setTickRate(Math.min(20, serverTPS));
@@ -380,6 +387,7 @@ public class TickSyncMain implements ModInitializer {
 
 		setTickRate(tickRate);
 		isTickRateChangedLastTick = true;
+		isTickRatePendingRender = true;
 	}
 
 	void setTickRate(float tickRate) {

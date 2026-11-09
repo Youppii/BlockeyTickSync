@@ -38,6 +38,7 @@ public class RenderTickCounterMixin {
         long frameDurationMs = timeMillis - this.prevTimeMillis;
         if (this.prevTimeMillis > 0 && frameDurationMs >= 85) TickSyncTelemetry.logFrameHitch(frameDurationMs);
         this.lastFrameDuration = (float) frameDurationMs / this.targetMillisPerTick.apply(this.tickTime);
+        TickSyncMain.INSTANCE.onTickRateUsed();
         this.prevTimeMillis = timeMillis;
         this.tickDelta = this.tickDelta + this.lastFrameDuration;
         int i = (int)this.tickDelta;
