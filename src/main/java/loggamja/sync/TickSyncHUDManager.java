@@ -9,8 +9,7 @@ public class TickSyncHUDManager {
     public int avgPacketDelay;
     public int targetMargin;
     public int syncTextAlpha = 20;
-    public int packetsPerSecond;
-    public int lossPercent;
+    public int movementCoverage;
     public int wrappedPerSecond;
     public String syncStatus = "PAUSED (Not in game)";
     public int syncStatusColor = 0xAAAAAA;
@@ -24,8 +23,7 @@ public class TickSyncHUDManager {
 
     public float[] packetDelayHistogram = new float[samplingRange];
     private static final int WINDOW_SIZE = 20;
-    private final int[] packetsPerTick = new int[WINDOW_SIZE];
-    private final boolean[] activeTick = new boolean[WINDOW_SIZE];
+    private final boolean[] movementTick = new boolean[WINDOW_SIZE];
     private final boolean[] wrappedTick = new boolean[WINDOW_SIZE];
     private int windowIndex;
 
@@ -33,48 +31,40 @@ public class TickSyncHUDManager {
 
     void resetSampling() {
         Arrays.fill(packetDelayHistogram, 0);
-        Arrays.fill(packetsPerTick, 0);
-        Arrays.fill(activeTick, false);
+        Arrays.fill(movementTick, false);
         Arrays.fill(wrappedTick, false);
         windowIndex = 0;
-        packetsPerSecond = 0;
-        lossPercent = 0;
+        movementCoverage = 0;
         wrappedPerSecond = 0;
         packetRange = 0;
         avgPacketDelay = 0;
         syncTextAlpha = 0;
     }
 
-    public void recordClientTick(int packetCallbacks, int packetDelay, boolean hasReceivedEntityPacket) {
-        final boolean active = hasReceivedEntityPacket && 0 <= packetDelay && packetDelay < TickSyncMain.packetActiveTimeout;
-        packetsPerTick[windowIndex] = packetCallbacks;
-        activeTick[windowIndex] = active;
-        wrappedTick[windowIndex] = active && packetDelay >= 38;
+    public void recordClientTick(int packetCallbacks, int packetDelay) {
+        movementTick[windowIndex] = packetCallbacks > 0;
+        wrappedTick[windowIndex] = packetCallbacks > 0 && packetDelay >= 38 && packetDelay < TickSyncMain.packetActiveTimeout;
         windowIndex = (windowIndex + 1) % WINDOW_SIZE;
 
-        int activeSlots = 0;
-        int receivedSlots = 0;
-        packetsPerSecond = 0;
+        movementCoverage = 0;
         wrappedPerSecond = 0;
         for (int i = 0; i < WINDOW_SIZE; i++) {
-            if (activeTick[i] && packetsPerTick[i] > 0) packetsPerSecond++;
-            if (activeTick[i]) {
-                activeSlots++;
-                if (packetsPerTick[i] > 0) receivedSlots++;
-                if (wrappedTick[i]) wrappedPerSecond++;
-            }
+            if (movementTick[i]) movementCoverage++;
+            if (wrappedTick[i]) wrappedPerSecond++;
         }
-        lossPercent = activeSlots == 0 ? 0 : Math.round(100f * (activeSlots - receivedSlots) / activeSlots);
     }
 
     public void updateHUD() {
         TickSyncMain main = TickSyncMain.INSTANCE;
         MinecraftClient client = MinecraftClient.getInstance();
-        packetRange = main.packetRange;
-        avgPacketDelay = main.avgPacketDelay;
         targetMargin = main.getPacketMargin();
-        boolean hasActiveSamples = client.world != null && client.player != null && !client.isPaused()
-                && main.hasReceivedEntityPacket && System.currentTimeMillis() - main.lastServerPacketTime < TickSyncMain.packetActiveTimeout;
+        boolean hasActiveSamples = main.isPlayingInGame() && main.hasActiveMovement();
+        boolean samplesReady = main.hasTimingEvidence();
+        boolean hasRecentSamples = hasActiveSamples && main.hasRecentTimingEvidence();
+        if (samplesReady) {
+            packetRange = main.packetRange;
+            avgPacketDelay = main.avgPacketDelay;
+        }
 
         if (!TickSyncConfig.INSTANCE.isTickSyncOn) {
             setSyncStatus("Sync: PAUSED (Disabled)", 0xAAAAAA);
@@ -88,11 +78,14 @@ public class TickSyncHUDManager {
             setSyncStatus("Sync: PAUSED (Low FPS)", 0xFF5555);
         } else if (!hasActiveSamples) {
             setSyncStatus("Sync: Idle (No Moving Entities)", 0xAAAAAA);
+        } else if (!hasRecentSamples) {
+            setSyncStatus("Sync: Waiting for samples", 0xAAAAAA);
         } else if (!main.canSync()) {
             setSyncStatus("Sync: PAUSED (High Jitter)", 0xFF5555);
-        } else if (main.pendingShiftMs != 0 || main.isTickSyncRequired()) {
+        } else if (main.pendingShiftMs != 0 || main.isTickRateChangedLastTick
+                || (samplesReady && main.isTickSyncRequired())) {
             setSyncStatus("Sync: Adjusting...", 0xFFFF55);
-        } else {
+        } else if (samplesReady) {
             setSyncStatus("Sync: LOCKED IN", 0x55FF55);
         }
 
@@ -103,8 +96,8 @@ public class TickSyncHUDManager {
         else delayStatus = "Lagging";
         delayStatusColor = avgPacketDelay < 38 ? 0x55FF55 : avgPacketDelay < samplingRange ? 0xFFFF55 : 0xFF5555;
 
-        if (lossPercent >= 25 || wrappedPerSecond >= WINDOW_SIZE / 4) packetStatsColor = 0xFF5555;
-        else if (lossPercent > 0 || wrappedPerSecond > 0) packetStatsColor = 0xFFFF55;
+        if (wrappedPerSecond >= WINDOW_SIZE / 4) packetStatsColor = 0xFF5555;
+        else if (wrappedPerSecond > 0) packetStatsColor = 0xFFFF55;
         else packetStatsColor = 0x55FF55;
 
         // Existing 8ms outlier limit and 16ms automatic cushion ceiling bound puck jitter states.
@@ -119,7 +112,9 @@ public class TickSyncHUDManager {
             puckStatusColor = 0xFF5555;
         }
 
-        if (!hasActiveSamples) {
+        if (!hasRecentSamples) {
+            delayStatus = "Waiting for samples";
+            puckStatus = "Puck: Waiting for samples";
             delayStatusColor = 0xAAAAAA;
             packetStatsColor = 0xAAAAAA;
             puckStatusColor = 0xAAAAAA;

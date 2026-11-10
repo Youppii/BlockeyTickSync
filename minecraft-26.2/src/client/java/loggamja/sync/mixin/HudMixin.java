@@ -38,7 +38,7 @@ public abstract class HudMixin {
             y += spacing;
         }
         if (cfg.showPacketStats) {
-            drawHudText(graphics, "Packets: " + hud.packetsPerSecond + "/20 | Loss: " + hud.lossPercent + "% (" + hud.wrappedPerSecond + " Late)", y, hud.packetStatsColor);
+            drawHudText(graphics, "Movement coverage: " + hud.movementCoverage + "/20 ticks (" + hud.wrappedPerSecond + " Late)", y, hud.packetStatsColor);
             y += spacing;
         }
         if (cfg.showPuckStatus) {

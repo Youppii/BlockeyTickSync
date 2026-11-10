@@ -41,9 +41,9 @@ public final class TickSyncTelemetry {
     }
 
     public static void logSummary(int delay, TickSyncHUDManager hud, int late) {
-        String loss = hud.syncStatus.contains("Idle") ? "n/a" : hud.lossPercent + "%";
-        log("SUMMARY movementUpdates=" + hud.packetsPerSecond + "/20 lossEstimate=" + loss
-                + " hitDelay=" + delay + "ms late=" + late);
+        boolean samplesReady = TickSyncMain.INSTANCE.hasTimingEvidence();
+        log("SUMMARY movementCoverage=" + hud.movementCoverage + "/20 ticks samplesReady=" + samplesReady
+                + " hitDelay=" + (samplesReady ? delay + "ms" : "n/a") + " late=" + late);
     }
 
     public static void logSyncEvent(String status) { log("SYNC_EVENT " + status); }

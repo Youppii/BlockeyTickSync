@@ -40,7 +40,7 @@ public abstract class InGameHudMixin {
             y += spacing;
         }
         if (cfg.showPacketStats) {
-            drawHudText(context, "Packets: " + hud.packetsPerSecond + "/20 | Loss: " + hud.lossPercent + "% (" + hud.wrappedPerSecond + " Late)", y, hud.packetStatsColor);
+            drawHudText(context, "Movement coverage: " + hud.movementCoverage + "/20 ticks (" + hud.wrappedPerSecond + " Late)", y, hud.packetStatsColor);
             y += spacing;
         }
         if (cfg.showPuckStatus) {
