@@ -1,0 +1,13 @@
+{
+  "required": true,
+  "package": "loggamja.sync.mixin",
+  "compatibilityLevel": "JAVA_25",
+  "client": [
+    "ClientPacketListenerMixin",
+    "HudMixin",
+    "DeltaTrackerTimerMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
