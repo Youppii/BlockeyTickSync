@@ -69,7 +69,6 @@ public final class TickSyncTelemetry {
         List<BufferedWriter> writers = new ArrayList<>();
         LinkedHashSet<Path> paths = new LinkedHashSet<>();
         paths.add(FabricLoader.getInstance().getGameDir().resolve("ticksync-log.txt"));
-        paths.add(Path.of(System.getProperty("user.home"), "Desktop", "ticksync-log.txt"));
         for (Path path : paths) {
             try {
                 writers.add(Files.newBufferedWriter(path, StandardCharsets.UTF_8,

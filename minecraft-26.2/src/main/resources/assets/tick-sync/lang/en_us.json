@@ -17,7 +17,7 @@
   "tick-sync.option.debug": "Debug HUD",
   "tick-sync.option.debug.tooltip": "Shows TickSync status and packet timing in game. Default: OFF.",
   "tick-sync.option.enableTelemetry": "Diagnostic Logging",
-  "tick-sync.option.enableTelemetry.tooltip": "Writes local diagnostics to ticksync-log.txt in the game folder and on the desktop. Default: ON.",
+  "tick-sync.option.enableTelemetry.tooltip": "Writes local diagnostics to ticksync-log.txt in the game folder. Default: ON.",
   "tick-sync.option.hudPosition": "HUD Position",
   "tick-sync.option.hudPosition.tooltip": "Chooses the corner for the debug HUD. Default: Top Right.",
   "tick-sync.hudPosition.0": "Top Right",
