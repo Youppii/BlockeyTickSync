@@ -1,11 +1,15 @@
 package loggamja.sync;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
+import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
+import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientPacketListener;
+import net.minecraft.resources.Identifier;
 import net.minecraft.util.Mth;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -63,8 +67,18 @@ public class TickSyncMain implements ClientModInitializer {
 
 	@Override
 	public void onInitializeClient() {
+		KeyMapping.Category category = KeyMapping.Category.register(Identifier.fromNamespaceAndPath(MOD_ID, "controls"));
+		KeyMapping openSettings = KeyMappingHelper.registerKeyMapping(new KeyMapping(
+				"key.tick-sync.open_settings", InputConstants.UNKNOWN.getValue(), category));
 		ClientTickEvents.START_CLIENT_TICK.register(client -> INSTANCE.onClientTickStart());
-		ClientTickEvents.END_CLIENT_TICK.register(client -> INSTANCE.onClientTickEnd());
+		ClientTickEvents.END_CLIENT_TICK.register(client -> {
+			INSTANCE.onClientTickEnd();
+			while (openSettings.consumeClick()) {
+				if (client.player != null && client.gui.screen() == null) {
+					client.gui.setScreen(new TickSyncSetting(null));
+				}
+			}
+		});
 		ClientLifecycleEvents.CLIENT_STOPPING.register(client -> TickSyncTelemetry.shutdown());
 		ClientPlayConnectionEvents.INIT.register((handler, client) -> INSTANCE.resetConnection(handler));
 		ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> client.execute(() -> INSTANCE.onDisconnect(handler)));

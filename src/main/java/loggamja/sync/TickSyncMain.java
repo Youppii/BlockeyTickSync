@@ -3,6 +3,7 @@ package loggamja.sync;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
+import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.loader.api.FabricLoader;
 import net.fabricmc.loader.api.ModContainer;
@@ -11,6 +12,8 @@ import net.fabricmc.loader.api.VersionParsingException;
 import net.fabricmc.loader.api.metadata.ModMetadata;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.ClientPlayNetworkHandler;
+import net.minecraft.client.option.KeyBinding;
+import net.minecraft.client.util.InputUtil;
 import net.minecraft.client.world.ClientWorld;
 import net.minecraft.util.math.MathHelper;
 import org.slf4j.Logger;
@@ -70,8 +73,17 @@ public class TickSyncMain implements ModInitializer {
 
 	@Override
 	public void onInitialize() {
+		KeyBinding openSettings = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+				"key.tick-sync.open_settings", InputUtil.UNKNOWN_KEY.getCode(), "key.categories.tick-sync"));
 		ClientTickEvents.START_CLIENT_TICK.register(client -> INSTANCE.onClientTickStart());
-		ClientTickEvents.END_CLIENT_TICK.register(client -> INSTANCE.onClientTickEnd());
+		ClientTickEvents.END_CLIENT_TICK.register(client -> {
+			INSTANCE.onClientTickEnd();
+			while (openSettings.wasPressed()) {
+				if (client.player != null && client.currentScreen == null) {
+					client.setScreen(new TickSyncSetting(null));
+				}
+			}
+		});
 		ClientLifecycleEvents.CLIENT_STOPPING.register(client -> TickSyncTelemetry.shutdown());
 		ClientPlayConnectionEvents.INIT.register((handler, client) -> INSTANCE.resetConnection(handler));
 		ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> client.execute(() -> INSTANCE.onDisconnect(handler)));

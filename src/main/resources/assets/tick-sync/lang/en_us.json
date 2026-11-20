@@ -1,5 +1,7 @@
 {
   "tick-sync.settings": "TickSync Settings",
+  "key.categories.tick-sync": "TickSync",
+  "key.tick-sync.open_settings": "Open TickSync Settings",
   "tick-sync.auto": "Auto",
   "tick-sync.reset": "Reset to Defaults",
   "tick-sync.option.enabled": "TickSync",
